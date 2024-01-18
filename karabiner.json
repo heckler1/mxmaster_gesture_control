@@ -1,0 +1,157 @@
+{
+  "description": "Remaps MX Master 3 for compatibility with mxmaster_gesture_control, swap forward and back buttons, fixes default desktop switch shortcuts to f17/f18/f19",
+  "manipulators": [
+    {
+      "type": "basic",
+      "from": {
+        "key_code": "left_command"
+      },
+      "to": {
+        "key_code": "vk_none"
+      },
+      "conditions": [
+        {
+          "type": "device_if",
+          "identifiers": [
+            {
+              "vendor_id": 1133,
+              "product_id": 45091,
+              "description": "MX Master 3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "basic",
+      "from": {
+        "key_code": "tab"
+      },
+      "to": {
+        "pointing_button": "button27"
+      },
+      "conditions": [
+        {
+          "type": "device_if",
+          "identifiers": [
+            {
+              "vendor_id": 1133,
+              "product_id": 45091,
+              "description": "MX Master 3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "basic",
+      "from": {
+        "pointing_button": "button4"
+      },
+      "to": {
+        "key_code": "right_arrow",
+        "modifiers": "left_command"
+      },
+      "conditions": [
+        {
+          "type": "device_if",
+          "identifiers": [
+            {
+              "vendor_id": 1133,
+              "product_id": 45091,
+              "description": "MX Master 3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "basic",
+      "from": {
+        "pointing_button": "button5"
+      },
+      "to": {
+        "key_code": "left_arrow",
+        "modifiers": "left_command"
+      },
+      "conditions": [
+        {
+          "type": "device_if",
+          "identifiers": [
+            {
+              "vendor_id": 1133,
+              "product_id": 45091,
+              "description": "MX Master 3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "basic",
+      "from": {
+        "key_code": "up_arrow",
+        "modifiers": { "mandatory": ["left_control"] }
+      },
+      "to": {
+        "key_code": "f17"
+      },
+      "conditions": [
+        {
+          "type": "device_unless",
+          "identifiers": [
+            {
+              "vendor_id": 1133,
+              "product_id": 45091,
+              "description": "MX Master 3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "basic",
+      "from": {
+        "key_code": "left_arrow",
+        "modifiers": { "mandatory": ["left_control"] }
+      },
+      "to": {
+        "key_code": "f18"
+      },
+      "conditions": [
+        {
+          "type": "device_unless",
+          "identifiers": [
+            {
+              "vendor_id": 1133,
+              "product_id": 45091,
+              "description": "MX Master 3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "basic",
+      "from": {
+        "key_code": "right_arrow",
+        "modifiers": { "mandatory": ["left_control"] }
+      },
+      "to": {
+        "key_code": "f19"
+      },
+      "conditions": [
+        {
+          "type": "device_unless",
+          "identifiers": [
+            {
+              "vendor_id": 1133,
+              "product_id": 45091,
+              "description": "MX Master 3"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		DCCAA2C42B598176009E0133 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCAA2C32B598176009E0133 /* main.swift */; };
+		DCCAA2CB2B598194009E0133 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCAA2CA2B598194009E0133 /* main.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -24,7 +24,7 @@
 
 /* Begin PBXFileReference section */
 		DCCAA2C02B598176009E0133 /* mxmaster_gesture_control */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = mxmaster_gesture_control; sourceTree = BUILT_PRODUCTS_DIR; };
-		DCCAA2C32B598176009E0133 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		DCCAA2CA2B598194009E0133 /* main.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,7 +57,7 @@
 		DCCAA2C22B598176009E0133 /* mxmaster_gesture_control */ = {
 			isa = PBXGroup;
 			children = (
-				DCCAA2C32B598176009E0133 /* main.swift */,
+				DCCAA2CA2B598194009E0133 /* main.swift */,
 			);
 			path = mxmaster_gesture_control;
 			sourceTree = "<group>";
@@ -120,7 +120,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DCCAA2C42B598176009E0133 /* main.swift in Sources */,
+				DCCAA2CB2B598194009E0133 /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

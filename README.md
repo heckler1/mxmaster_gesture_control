@@ -19,7 +19,7 @@ swiftc mxmaster_gesture_control/main.swift -o ~/.local/bin/mxmaster_gesture_cont
 
 As long as `~/.local/bin` is in your $PATH
 
-```plist
+```
 cat << EOF >> ~/Library/LaunchAgents/mxmaster_gesture_control.plist
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

@@ -108,43 +108,47 @@ extension OptionSet {
 }
 //  CGKeyCodeInitializers.swift END
 
-// Handles a full key press: up and down
-func KeyPress(_ key: CGKeyCode) {
-  if let source = CGEventSource(stateID: .privateState),
-    let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true)
-  {
-    event.type = .keyDown
-    event.post(tap: .cghidEventTap)
-  }
-  if let source = CGEventSource(stateID: .privateState),
-    let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false)
-  {
-    event.type = .keyUp
-    event.post(tap: .cghidEventTap)
-  }
-}
 
 class EventTap {
 
   static var rloop_source: CFRunLoopSource! = nil
+  static var tap: CGEventTapLocation! = .cgSessionEventTap
 
   class func create() {
-
     if rloop_source != nil { EventTap.remove() }
 
-    let tap = CGEventTap.create(callback: tap_callback)!
+    let tap = CGEventTap.create(tap: self.tap, callback: tap_callback)
 
     rloop_source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, CFIndex(0))
     CFRunLoopAddSource(CFRunLoopGetCurrent(), rloop_source, .commonModes)
     CGEvent.tapEnable(tap: tap, enable: true)
     CFRunLoopRun()
-
   }
 
   class func remove() {
     if rloop_source != nil {
       CFRunLoopRemoveSource(CFRunLoopGetCurrent(), rloop_source, .commonModes)
       rloop_source = nil
+    }
+  }
+
+  class func keyPress(_ key: CGKeyCode, _ command: Bool) {
+    let source = CGEventSource(stateID: .privateState)
+
+    if let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true) {
+      if command {
+        event.flags = CGEventFlags.maskCommand
+      }
+
+      event.post(tap: self.tap)
+    }
+
+    if let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false) {
+      if command {
+        event.flags = CGEventFlags.maskCommand
+      }
+
+      event.post(tap: self.tap)
     }
   }
 
@@ -157,29 +161,32 @@ class EventTap {
 
     switch type {
     case .otherMouseDown:
-      if event.getIntegerValueField(.mouseEventButtonNumber) == 26 {
-        // eat the event so it doesn't trigger other behavior
+      // eventButtonNumber is 0-indexed, most other software displays it as 1-indexed though
+      switch event.getIntegerValueField(.mouseEventButtonNumber) {
+      case 26:
+        // eat the gesture button event so it doesn't trigger other behavior, such as scrolling in firefox
         return nil
+      default:
+        return event
       }
-      return event
     case .otherMouseDragged:
       // eventButtonNumber is 0-indexed: this is button27 in Karabiner
       if event.getIntegerValueField(.mouseEventButtonNumber) == 26 {
         let delta_x = event.getIntegerValueField(.mouseEventDeltaX)
         // If we're not dragging the mouse left or right, interpret as opening mission control
-        // TODO: can we use the actual mission control key here?
         if abs(delta_x) < 5 {
-          guard let f17 = CGKeyCode(specialKey: .f17) else { fatalError() }
-          KeyPress(f17)
+          let missionControl: UInt16 = 160
+          self.keyPress(missionControl, false)
           return nil
         }
+
         // These must be remapped in the system keyboard shortcut settings
         // Then Karabiner can be used to map the standard ctrl-arrow system shortcuts to f18/19
         guard let f18 = CGKeyCode(specialKey: .f18) else { fatalError() }
         guard let f19 = CGKeyCode(specialKey: .f19) else { fatalError() }
 
         let key: CGKeyCode = (delta_x > 0) ? f19 : ((delta_x < 0) ? f18 : f19)
-        KeyPress(key)
+        self.keyPress(key, false)
         return nil
       }
       return event
@@ -188,43 +195,42 @@ class EventTap {
       return event
 
     }
-
   }
-
 }
 
 private typealias CGEventTap = CFMachPort
 extension CGEventTap {
 
   fileprivate class func create(
+    tap: CGEventTapLocation,
     callback: @escaping CGEventTapCallBack
-  ) -> CGEventTap? {
+  ) -> CGEventTap {
 
     /*
-			leftMouseDown = 1
-			leftMouseUp = 2
-			rightMouseDown = 3
-			rightMouseUp = 4
-			mouseMoved = 5
-			leftMouseDragged = 6
-			rightMouseDragged = 7
-			keyDown = 10
-			keyUp = 11
-			flagsChanged = 12
-			scrollWheel = 22
-			tabletPointer = 23
-			tabletProximity = 24
-			otherMouseDown = 25
-			otherMouseUp = 26
-			otherMouseDragged = 27
-         */
+     leftMouseDown = 1
+     leftMouseUp = 2
+     rightMouseDown = 3
+     rightMouseUp = 4
+     mouseMoved = 5
+     leftMouseDragged = 6
+     rightMouseDragged = 7
+     keyDown = 10
+     keyUp = 11
+     flagsChanged = 12
+     scrollWheel = 22
+     tabletPointer = 23
+     tabletProximity = 24
+     otherMouseDown = 25
+     otherMouseUp = 26
+     otherMouseDragged = 27
+     */
 
     let mask: UInt32 = (1 << 25) | (1 << 27)
 
     let tap: CFMachPort! = CGEvent.tapCreate(
       // could use .cghidEventTap for accessing events entering the window server, instead of this tap that events enter a login server
       // https://developer.apple.com/documentation/coregraphics/cgeventtaplocation
-      tap: .cgSessionEventTap,
+      tap: tap,
       place: .headInsertEventTap,
       options: .defaultTap,
       eventsOfInterest: CGEventMask(mask),

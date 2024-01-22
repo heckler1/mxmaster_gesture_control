@@ -110,10 +110,13 @@ extension OptionSet {
 
 
 class EventTap {
-
+  
   static var rloop_source: CFRunLoopSource! = nil
+  // could use .cghidEventTap for accessing events entering the window server, instead of this tap that events enter a login server
+  // https://developer.apple.com/documentation/coregraphics/cgeventtaplocation
   static var tap: CGEventTapLocation! = .cgSessionEventTap
-
+  static var dragging: Bool = false
+  
   class func create() {
     if rloop_source != nil { EventTap.remove() }
 
@@ -160,11 +163,19 @@ class EventTap {
     guard let event = immutable_event else { return nil }
 
     switch type {
-    case .otherMouseDown:
+    case .otherMouseUp:
       // eventButtonNumber is 0-indexed, most other software displays it as 1-indexed though
       switch event.getIntegerValueField(.mouseEventButtonNumber) {
       case 26:
-        // eat the gesture button event so it doesn't trigger other behavior, such as scrolling in firefox
+        // If the user was in the middle of a drag, now they've lifted the button and are done
+        if self.dragging {
+          self.dragging = false
+          // eat the event if they were in the middle of a drag
+          return nil
+        }
+        // otherwise they weren't dragging, let's open mission control
+        let missionControl: UInt16 = 160
+        self.keyPress(missionControl, false)
         return nil
       default:
         return event
@@ -173,12 +184,12 @@ class EventTap {
       // eventButtonNumber is 0-indexed: this is button27 in Karabiner
       if event.getIntegerValueField(.mouseEventButtonNumber) == 26 {
         let delta_x = event.getIntegerValueField(.mouseEventDeltaX)
-        // If we're not dragging the mouse left or right, interpret as opening mission control
-        if abs(delta_x) < 5 {
-          let missionControl: UInt16 = 160
-          self.keyPress(missionControl, false)
+        // Very small movements are likely a button press with a slight shake of the mouse, do nothing
+        if abs(delta_x) < 1 {
           return nil
         }
+        // Ensure we set a successful drag, so that the button presses don't interfere with the gesturing
+        self.dragging = true
 
         // These must be remapped in the system keyboard shortcut settings
         // Then Karabiner can be used to map the standard ctrl-arrow system shortcuts to f18/19
@@ -225,11 +236,9 @@ extension CGEventTap {
      otherMouseDragged = 27
      */
 
-    let mask: UInt32 = (1 << 25) | (1 << 27)
+    let mask: UInt32 = (1 << 25) | (1 << 26) | (1 << 27)
 
     let tap: CFMachPort! = CGEvent.tapCreate(
-      // could use .cghidEventTap for accessing events entering the window server, instead of this tap that events enter a login server
-      // https://developer.apple.com/documentation/coregraphics/cgeventtaplocation
       tap: tap,
       place: .headInsertEventTap,
       options: .defaultTap,

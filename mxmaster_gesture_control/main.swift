@@ -108,15 +108,14 @@ extension OptionSet {
 }
 //  CGKeyCodeInitializers.swift END
 
-
 class EventTap {
-  
+
   static var rloop_source: CFRunLoopSource! = nil
   // could use .cghidEventTap for accessing events entering the window server, instead of this tap that events enter a login server
   // https://developer.apple.com/documentation/coregraphics/cgeventtaplocation
   static var tap: CGEventTapLocation! = .cgSessionEventTap
   static var dragging: Bool = false
-  
+
   class func create() {
     if rloop_source != nil { EventTap.remove() }
 
@@ -180,6 +179,31 @@ class EventTap {
       default:
         return event
       }
+    /*
+    // We could set forward and back conversion here as well
+    // These buttons should be converted to the proper keyboard shortcuts 
+    // regardless of reversing the forward and back mapping, for proper interpretation by all apps
+    // But, for now we just do all this in Karabiner. 
+    // This could come in handy if we want to get fancy and try to find events from 
+    // specific devices to move all reinterpretation out of Karabiner, but there's not much benefit to that
+    case .otherMouseDown:
+      // eventButtonNumber is 0-indexed, most other software displays it as 1-indexed though
+      switch event.getIntegerValueField(.mouseEventButtonNumber) {
+      case 3:
+        // forward
+        // TODO: Make the swapping behavior here configurable
+        guard let rightArrow = CGKeyCode(specialKey: .rightArrow) else { fatalError() }
+        self.keyPress(rightArrow, true)
+        return nil
+      case 4:
+        // back
+        guard let leftArrow = CGKeyCode(specialKey: .leftArrow) else { fatalError() }
+        self.keyPress(leftArrow, true)
+        return nil
+      default:
+        return event
+      }
+    */
     case .otherMouseDragged:
       // eventButtonNumber is 0-indexed: this is button27 in Karabiner
       if event.getIntegerValueField(.mouseEventButtonNumber) == 26 {

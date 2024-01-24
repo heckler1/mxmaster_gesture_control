@@ -28,8 +28,6 @@ swiftc mxmaster_gesture_control/main.swift -o ~/.local/bin/mxmaster_gesture_cont
 
 ## Start on login
 
-As long as `~/.local/bin` is in your $PATH
-
 ```
 cat << EOF >> ~/Library/LaunchAgents/mxmaster_gesture_control.plist
 <?xml version="1.0" encoding="UTF-8"?>
@@ -37,11 +35,9 @@ cat << EOF >> ~/Library/LaunchAgents/mxmaster_gesture_control.plist
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.sheckler.mxmastergesturecontrol</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>mxmaster_gesture_control</string>
-    </array>
+    <string>com.yourname.mxmastergesturecontrol</string>
+    <key>Program</key>
+    <string>/Users/yourname/.local/bin/mxmaster_gesture_control</string>
     <key>KeepAlive</key>
     <true/>
 </dict>

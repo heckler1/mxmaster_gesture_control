@@ -11,108 +11,20 @@ import AppKit
 import CoreGraphics
 import Foundation
 
-//
-// https://jjrscott.com/how-to-convert-ascii-character-to-cgkeycode/
-//  CGKeyCodeInitializers.swift START
-//
-//  Created by John Scott on 09/02/2022.
-//
-
-extension CGKeyCode {
-  public init?(character: String) {
-    if let keyCode = Initializers.shared.characterKeys[character] {
-      self = keyCode
-    } else {
-      return nil
-    }
-  }
-
-  public init?(modifierFlag: NSEvent.ModifierFlags) {
-    if let keyCode = Initializers.shared.modifierFlagKeys[modifierFlag] {
-      self = keyCode
-    } else {
-      return nil
-    }
-  }
-
-  public init?(specialKey: NSEvent.SpecialKey) {
-    if let keyCode = Initializers.shared.specialKeys[specialKey] {
-      self = keyCode
-    } else {
-      return nil
-    }
-  }
-
-  private struct Initializers {
-    let specialKeys: [NSEvent.SpecialKey: CGKeyCode]
-    let characterKeys: [String: CGKeyCode]
-    let modifierFlagKeys: [NSEvent.ModifierFlags: CGKeyCode]
-
-    static let shared = Initializers()
-
-    init() {
-      var specialKeys = [NSEvent.SpecialKey: CGKeyCode]()
-      var characterKeys = [String: CGKeyCode]()
-      var modifierFlagKeys = [NSEvent.ModifierFlags: CGKeyCode]()
-
-      for keyCode in (0..<128).map({ CGKeyCode($0) }) {
-        guard
-          let cgevent = CGEvent(
-            keyboardEventSource: nil, virtualKey: CGKeyCode(keyCode), keyDown: true)
-        else { continue }
-        guard let nsevent = NSEvent(cgEvent: cgevent) else { continue }
-
-        var hasHandledKeyCode = false
-        if nsevent.type == .keyDown {
-          if let specialKey = nsevent.specialKey {
-            hasHandledKeyCode = true
-            specialKeys[specialKey] = keyCode
-          } else if let characters = nsevent.charactersIgnoringModifiers,
-            !characters.isEmpty && characters != "\u{0010}"
-          {
-            hasHandledKeyCode = true
-            characterKeys[characters] = keyCode
-          }
-        } else if nsevent.type == .flagsChanged,
-          let modifierFlag = nsevent.modifierFlags.first(
-            .capsLock, .shift, .control, .option, .command, .help, .function)
-        {
-          hasHandledKeyCode = true
-          modifierFlagKeys[modifierFlag] = keyCode
-        }
-        if !hasHandledKeyCode {
-          #if DEBUG
-            print("Unhandled keycode \(keyCode): \(nsevent)")
-          #endif
-        }
-      }
-      self.specialKeys = specialKeys
-      self.characterKeys = characterKeys
-      self.modifierFlagKeys = modifierFlagKeys
-    }
-  }
-
+enum Keys: CGKeyCode {
+  // kVK_Control from Carbon 
+  // https://github.com/phracker/MacOSX-SDKs/blob/master/MacOSX10.15.sdk/System/Library/Frameworks/Carbon.framework/Versions/A/Frameworks/HIToolbox.framework/Versions/A/Headers/Events.h#L275
+  case control = 59 //0x3B
+  case leftArrow = 123
+  case rightArrow = 124
+  case downArrow = 125
+  case upArrow = 126
+  case missionControl = 160
 }
-
-extension NSEvent.ModifierFlags: Hashable {}
-
-extension OptionSet {
-  public func first(_ options: Self.Element...) -> Self.Element? {
-    for option in options {
-      if contains(option) {
-        return option
-      }
-    }
-    return nil
-  }
-}
-//  CGKeyCodeInitializers.swift END
 
 class EventTap {
 
   static var rloop_source: CFRunLoopSource! = nil
-  // could use .cghidEventTap for accessing events entering the window server, instead of this tap that events enter a login server
-  // https://developer.apple.com/documentation/coregraphics/cgeventtaplocation
   static var tap: CGEventTapLocation! = .cgSessionEventTap
   static var dragging: Bool = false
 
@@ -134,23 +46,63 @@ class EventTap {
     }
   }
 
-  class func keyPress(_ key: CGKeyCode, _ command: Bool) {
+  class func keyPress(_ key: CGKeyCode, _ command: Bool, _ control: Bool) {
     let source = CGEventSource(stateID: .privateState)
 
+    let arrow = (key == Keys.rightArrow.rawValue || key == Keys.leftArrow.rawValue || key == Keys.upArrow.rawValue || key == Keys.downArrow.rawValue)
+
+    if control && arrow {
+      // Specifically for use with arrow keys, the control key must be pressed "manually" like this,
+      // and must also have the Control modifier flag
+      // One or the other is not enough: adding the flag to the actual arrow events will not work
+      if let event = CGEvent(keyboardEventSource: source, virtualKey: Keys.control.rawValue, keyDown: true) {
+        event.flags = CGEventFlags.maskControl
+        event.post(tap: self.tap)
+      }
+      // The sleeps are necessary to allow the system to recognize the control key has been pressed before sending the arrows
+      // usleep(100) is very reliable but 50 seems pretty close to the minimum value
+      usleep(50)
+    }
+
+    // Button down
     if let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true) {
       if command {
         event.flags = CGEventFlags.maskCommand
+      }
+      if control && !arrow {
+        if command {
+          event.flags = [CGEventFlags.maskCommand, CGEventFlags.maskControl]
+        } else {
+          event.flags = CGEventFlags.maskControl
+        }
       }
 
       event.post(tap: self.tap)
     }
 
+    // Button up
     if let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false) {
       if command {
-        event.flags = CGEventFlags.maskCommand
+        event.flags =  CGEventFlags.maskCommand
+      }
+      if control && !arrow {
+        if command {
+          event.flags = [CGEventFlags.maskCommand, CGEventFlags.maskControl]
+        } 
+        else {
+          event.flags = CGEventFlags.maskControl
+        }
       }
 
       event.post(tap: self.tap)
+    }
+
+    if control && arrow {
+        usleep(50)
+        if let event = CGEvent(keyboardEventSource: source, virtualKey: Keys.control.rawValue, keyDown: false) {
+          event.flags = CGEventFlags.maskControl
+          event.post(tap: self.tap)
+        }
     }
   }
 
@@ -173,8 +125,7 @@ class EventTap {
           return nil
         }
         // otherwise they weren't dragging, let's open mission control
-        let missionControl: UInt16 = 160
-        self.keyPress(missionControl, false)
+        self.keyPress(Keys.missionControl.rawValue, false, false)
         return nil
       default:
         return event
@@ -192,13 +143,11 @@ class EventTap {
       case 3:
         // forward
         // TODO: Make the swapping behavior here configurable
-        guard let rightArrow = CGKeyCode(specialKey: .rightArrow) else { fatalError() }
-        self.keyPress(rightArrow, true)
+        self.keyPress(Keys.rightArrow.rawValue, true, false)
         return nil
       case 4:
         // back
-        guard let leftArrow = CGKeyCode(specialKey: .leftArrow) else { fatalError() }
-        self.keyPress(leftArrow, true)
+        self.keyPress(Keys.leftArrow.rawValue, true, false)
         return nil
       default:
         return event
@@ -215,13 +164,8 @@ class EventTap {
         // Ensure we set a successful drag, so that the button presses don't interfere with the gesturing
         self.dragging = true
 
-        // These must be remapped in the system keyboard shortcut settings
-        // Then Karabiner can be used to map the standard ctrl-arrow system shortcuts to f18/19
-        guard let f18 = CGKeyCode(specialKey: .f18) else { fatalError() }
-        guard let f19 = CGKeyCode(specialKey: .f19) else { fatalError() }
-
-        let key: CGKeyCode = (delta_x > 0) ? f19 : ((delta_x < 0) ? f18 : f19)
-        self.keyPress(key, false)
+        let key: CGKeyCode = (delta_x > 0) ? Keys.rightArrow.rawValue : ((delta_x < 0) ? Keys.leftArrow.rawValue : Keys.rightArrow.rawValue)
+        self.keyPress(key, false, true)
         return nil
       }
       return event

@@ -1,5 +1,5 @@
 {
-  "description": "Remaps MX Master 3 for compatibility with mxmaster_gesture_control, swap forward and back buttons, fixes default desktop switch shortcuts to f18/f19",
+  "description": "Remaps MX Master 3 for compatibility with mxmaster_gesture_control, swap forward and back buttons",
   "manipulators": [
     {
       "type": "basic",
@@ -77,50 +77,6 @@
       "conditions": [
         {
           "type": "device_if",
-          "identifiers": [
-            {
-              "vendor_id": 1133,
-              "product_id": 45091,
-              "description": "MX Master 3"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "basic",
-      "from": {
-        "key_code": "left_arrow",
-        "modifiers": { "mandatory": ["left_control"] }
-      },
-      "to": {
-        "key_code": "f18"
-      },
-      "conditions": [
-        {
-          "type": "device_unless",
-          "identifiers": [
-            {
-              "vendor_id": 1133,
-              "product_id": 45091,
-              "description": "MX Master 3"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "basic",
-      "from": {
-        "key_code": "right_arrow",
-        "modifiers": { "mandatory": ["left_control"] }
-      },
-      "to": {
-        "key_code": "f19"
-      },
-      "conditions": [
-        {
-          "type": "device_unless",
           "identifiers": [
             {
               "vendor_id": 1133,

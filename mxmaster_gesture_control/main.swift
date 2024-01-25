@@ -14,6 +14,7 @@ import Foundation
 enum Keys: CGKeyCode {
   // kVK_Control from Carbon 
   // https://github.com/phracker/MacOSX-SDKs/blob/master/MacOSX10.15.sdk/System/Library/Frameworks/Carbon.framework/Versions/A/Frameworks/HIToolbox.framework/Versions/A/Headers/Events.h#L275
+  // See also: https://gist.github.com/chipjarred/cbb324c797aec865918a8045c4b51d14
   case control = 59 //0x3B
   case leftArrow = 123
   case rightArrow = 124
@@ -164,8 +165,12 @@ class EventTap {
         // Ensure we set a successful drag, so that the button presses don't interfere with the gesturing
         self.dragging = true
 
-        let key: CGKeyCode = (delta_x > 0) ? Keys.rightArrow.rawValue : ((delta_x < 0) ? Keys.leftArrow.rawValue : Keys.rightArrow.rawValue)
-        self.keyPress(key, false, true)
+        if delta_x < 0 {
+          self.keyPress(Keys.leftArrow.rawValue, false, true)
+        } else {
+          self.keyPress(Keys.rightArrow.rawValue, false, true)
+        }
+        
         return nil
       }
       return event

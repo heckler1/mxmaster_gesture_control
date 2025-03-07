@@ -99,7 +99,7 @@ class EventTap {
     }
 
     if control && arrow {
-        usleep(50)
+        usleep(20)
         if let event = CGEvent(keyboardEventSource: source, virtualKey: Keys.control.rawValue, keyDown: false) {
           event.flags = CGEventFlags.maskControl
           event.post(tap: self.tap)

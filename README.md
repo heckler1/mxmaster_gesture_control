@@ -41,3 +41,10 @@ EOF
 # Load for the first time and accept the Accessibility prompt
 launchctl load ~/Library/LaunchAgents/mxmaster_gesture_control.plist
 ```
+
+## Upgrading
+
+- Run the `swiftc` command above
+- Go to MacOS's Settings -> Privacy and Security -> Accessibility
+- Delete the `mxmaster_gesture_control` entry
+- Rerun the `launchctl load command above`

@@ -158,19 +158,65 @@ class EventTap {
       // eventButtonNumber is 0-indexed: this is button27 in Karabiner
       if event.getIntegerValueField(.mouseEventButtonNumber) == 26 {
         let delta_x = event.getIntegerValueField(.mouseEventDeltaX)
-        // Very small movements are likely a button press with a slight shake of the mouse, do nothing
-        if abs(delta_x) < 1 {
+        let delta_y = event.getIntegerValueField(.mouseEventDeltaY)
+
+        // Threshold to consider this an intentional mouse movement
+        // Very small movements are likely a button press with a slight shake of the mouse
+        let movementThreshold = 1
+        // Threshold to consider the movement clearly in the x or y direction
+        let directionThreshold = 3
+        // Threshold for a "large" movement that we want to double check the validity of
+        let largeMovementThreshold = 15
+        // Threshold for a large movement to be considered invalid due to being mostly diagonal
+        // This is a minimum delta between the absolute values of x and y
+        let diagonalThreshold = 7
+                
+        // Use an average here to artificially increase the precision.
+        // Because we only have an integer value, it's harder to accurately detect small movements
+        // A movement threshold of 1 for each axis isn't sensitive enough to catch small but intentional flicks
+        // A threshold of 0 has too many false positives that result in unintentional virtual desktop changes
+        if (abs(delta_x) + abs(delta_y))/2 < movementThreshold {
           return nil
         }
+
         // Ensure we set a successful drag, so that the button presses don't interfere with the gesturing
         self.dragging = true
 
-        if delta_x < 0 {
-          self.keyPress(Keys.leftArrow.rawValue, false, true)
-        } else {
-          self.keyPress(Keys.rightArrow.rawValue, false, true)
+        // If we have a large movement
+        if abs(delta_x) > largeMovementThreshold || abs(delta_y) > largeMovementThreshold {
+          // And the movement is sufficiently diagonal
+          if (abs(delta_x) - abs(delta_y)) < diagonalThreshold {
+            // Do nothing, this isn't a good signal
+            return nil
+          }
         }
         
+        // If we haven't reached the direction threshold, prefer X
+        if  abs(delta_x) < directionThreshold && abs(delta_y) < directionThreshold {
+          if delta_x < 0 { // negative movements are to the left, positive to the right
+            self.keyPress(Keys.leftArrow.rawValue, false, true)
+            return nil
+          }
+          self.keyPress(Keys.rightArrow.rawValue, false, true)
+          return nil
+        }
+        
+        // Otherwise, we need to decide if this is an X or a Y motion
+        if ((abs(delta_x) - abs(delta_y)) > directionThreshold) {
+          // Probably an X movement
+          if delta_x < 0 { // negative movements are to the left, positive to the right
+            self.keyPress(Keys.leftArrow.rawValue, false, true)
+            return nil
+          }
+          self.keyPress(Keys.rightArrow.rawValue, false, true)
+          return nil
+        }
+            
+        if delta_y < 0 { // negative movements are up, positive down
+          self.keyPress(Keys.missionControl.rawValue, false, false)
+          return nil
+        }
+        self.keyPress(Keys.downArrow.rawValue, false, true)
         return nil
       }
       return event

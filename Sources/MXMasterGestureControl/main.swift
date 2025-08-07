@@ -52,10 +52,10 @@ class EventTap {
   private static let controlKeyReleaseDelay: UInt32 = 20  // microseconds
 
   static var runLoopSource: CFRunLoopSource? = nil
-  static var tap: CGEventTapLocation = .cgSessionEventTap
+  private static var tap: CGEventTapLocation = .cgSessionEventTap
   static var dragging: Bool = false
 
-  class func create() {
+  static func create() {
     if runLoopSource != nil { EventTap.remove() }
 
     let tap = CGEventTap.create(tap: self.tap, callback: tapCallback)
@@ -66,13 +66,13 @@ class EventTap {
     CFRunLoopRun()
   }
 
-  class func remove() {
+  static func remove() {
     guard let source = runLoopSource else { return }
     CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .commonModes)
     runLoopSource = nil
   }
 
-  class func keyPress(_ key: CGKeyCode, _ command: Bool, _ control: Bool) {
+  static func keyPress(_ key: CGKeyCode, _ command: Bool, _ control: Bool) {
     let source = CGEventSource(stateID: .privateState)
 
     let arrow = (key == Keys.rightArrow.rawValue || key == Keys.leftArrow.rawValue || key == Keys.upArrow.rawValue || key == Keys.downArrow.rawValue)
@@ -195,7 +195,7 @@ class EventTap {
   // MARK: - Private Gesture Handling Methods
   
   /// Handles gesture detection and processing for mouse drag events
-  private class func handleGestureEvent(event: CGEvent) -> CGEvent? {
+  private static func handleGestureEvent(event: CGEvent) -> CGEvent? {
     let deltaX = event.getIntegerValueField(.mouseEventDeltaX)
     let deltaY = event.getIntegerValueField(.mouseEventDeltaY)
     
@@ -218,7 +218,7 @@ class EventTap {
   }
   
   /// Checks if mouse movement meets the minimum threshold for gesture detection
-  private class func isMovementSignificant(deltaX: Int64, deltaY: Int64) -> Bool {
+  private static func isMovementSignificant(deltaX: Int64, deltaY: Int64) -> Bool {
     // Use an average here to artificially increase the precision.
     // Because we only have an integer value, it's harder to accurately detect small movements
     // A movement threshold of 1 for each axis isn't sensitive enough to catch small but intentional flicks
@@ -227,7 +227,7 @@ class EventTap {
   }
   
   /// Validates that large movements aren't too diagonal to be considered valid gestures
-  private class func isValidLargeMovement(deltaX: Int64, deltaY: Int64) -> Bool {
+  private static func isValidLargeMovement(deltaX: Int64, deltaY: Int64) -> Bool {
     // If we have a large movement
     if abs(deltaX) > largeMovementThreshold || abs(deltaY) > largeMovementThreshold {
       // And the movement is sufficiently diagonal
@@ -240,7 +240,7 @@ class EventTap {
   }
   
   /// Determines direction and executes the appropriate key press for the gesture
-  private class func executeGestureAction(deltaX: Int64, deltaY: Int64) {
+  private static func executeGestureAction(deltaX: Int64, deltaY: Int64) {
     // If we haven't reached the direction threshold, prefer X
     if abs(deltaX) < directionThreshold && abs(deltaY) < directionThreshold {
       if deltaX < 0 { // negative movements are to the left, positive to the right

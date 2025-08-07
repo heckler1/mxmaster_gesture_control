@@ -17,7 +17,8 @@ The Karabiner config sends the forward and back buttons as L-Cmd + Left/Right Ar
 ## Build/Install
 
 ```bash
-swiftc mxmaster_gesture_control/main.swift -o ~/.local/bin/mxmaster_gesture_control
+swift build -c release
+cp ./.build/release/mxmaster_gesture_control ~/.local/bin/mxmaster_gesture_control
 ```
 
 ## Start on login
@@ -44,7 +45,7 @@ launchctl load ~/Library/LaunchAgents/mxmaster_gesture_control.plist
 
 ## Upgrading
 
-- Run the `swiftc` command above
+- Run the Build/Install instructions above
 - Go to MacOS's Settings -> Privacy and Security -> Accessibility
 - Delete the `mxmaster_gesture_control` entry
-- Rerun the `launchctl load command above`
+- Rerun the `launchctl load` command above

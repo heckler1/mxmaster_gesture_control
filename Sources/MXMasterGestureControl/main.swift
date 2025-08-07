@@ -24,9 +24,35 @@ enum Keys: CGKeyCode {
 }
 
 class EventTap {
+  
+  // MARK: - Gesture Detection Constants
+  
+  /// Threshold to consider this an intentional mouse movement.
+  /// Very small movements are likely a button press with a slight shake of the mouse.
+  /// Use an average here to artificially increase the precision since we only have integer values.
+  /// A threshold of 1 for each axis isn't sensitive enough to catch small but intentional flicks.
+  /// A threshold of 0 has too many false positives that result in unintentional virtual desktop changes.
+  private static let movementThreshold = 1
+  
+  /// Threshold to consider the movement clearly in the x or y direction
+  private static let directionThreshold = 3
+  
+  /// Threshold for a "large" movement that we want to double check the validity of
+  private static let largeMovementThreshold = 15
+  
+  /// For large movements to be considered invalid due to being mostly diagonal.
+  /// This is a minimum delta between the absolute values of x and y.
+  private static let diagonalThreshold = 7
+  
+  /// Mouse button number for gesture detection (0-indexed, corresponds to button 27 in Karabiner)
+  private static let gestureButtonNumber: Int64 = 26
+  
+  // MARK: - Key Press Timing Constants
+  private static let controlKeyDelay: UInt32 = 50  // microseconds
+  private static let controlKeyReleaseDelay: UInt32 = 20  // microseconds
 
-  static var runLoopSource: CFRunLoopSource! = nil
-  static var tap: CGEventTapLocation! = .cgSessionEventTap
+  static var runLoopSource: CFRunLoopSource? = nil
+  static var tap: CGEventTapLocation = .cgSessionEventTap
   static var dragging: Bool = false
 
   class func create() {
@@ -41,10 +67,9 @@ class EventTap {
   }
 
   class func remove() {
-    if runLoopSource != nil {
-      CFRunLoopRemoveSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
-      runLoopSource = nil
-    }
+    guard let source = runLoopSource else { return }
+    CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .commonModes)
+    runLoopSource = nil
   }
 
   class func keyPress(_ key: CGKeyCode, _ command: Bool, _ control: Bool) {
@@ -62,7 +87,7 @@ class EventTap {
       }
       // The sleeps are necessary to allow the system to recognize the control key has been pressed before sending the arrows
       // usleep(100) is very reliable but 50 seems pretty close to the minimum value
-      usleep(50)
+      usleep(controlKeyDelay)
     }
 
     // Button down
@@ -99,7 +124,7 @@ class EventTap {
     }
 
     if control && arrow {
-        usleep(20)
+        usleep(controlKeyReleaseDelay)
         if let event = CGEvent(keyboardEventSource: source, virtualKey: Keys.control.rawValue, keyDown: false) {
           event.flags = CGEventFlags.maskControl
           event.post(tap: self.tap)
@@ -108,7 +133,7 @@ class EventTap {
   }
 
   @objc class func handleEvent(
-    proxy: CGEventTapProxy, type: CGEventType, event immutableEvent: CGEvent!,
+    proxy: CGEventTapProxy, type: CGEventType, event immutableEvent: CGEvent?,
     refcon: UnsafeMutableRawPointer?
   ) -> CGEvent? {
 
@@ -118,7 +143,7 @@ class EventTap {
     case .otherMouseUp:
       // eventButtonNumber is 0-indexed, most other software displays it as 1-indexed though
       switch event.getIntegerValueField(.mouseEventButtonNumber) {
-      case 26:
+      case gestureButtonNumber:
         // If the user was in the middle of a drag, now they've lifted the button and are done
         if self.dragging {
           self.dragging = false
@@ -156,26 +181,15 @@ class EventTap {
     */
     case .otherMouseDragged:
       // eventButtonNumber is 0-indexed: this is button27 in Karabiner
-      if event.getIntegerValueField(.mouseEventButtonNumber) == 26 {
+      if event.getIntegerValueField(.mouseEventButtonNumber) == gestureButtonNumber {
         let deltaX = event.getIntegerValueField(.mouseEventDeltaX)
         let deltaY = event.getIntegerValueField(.mouseEventDeltaY)
 
-        // Threshold to consider this an intentional mouse movement
-        // Very small movements are likely a button press with a slight shake of the mouse
-        let movementThreshold = 1
-        // Threshold to consider the movement clearly in the x or y direction
-        let directionThreshold = 3
-        // Threshold for a "large" movement that we want to double check the validity of
-        let largeMovementThreshold = 15
-        // Threshold for a large movement to be considered invalid due to being mostly diagonal
-        // This is a minimum delta between the absolute values of x and y
-        let diagonalThreshold = 7
-                
         // Use an average here to artificially increase the precision.
         // Because we only have an integer value, it's harder to accurately detect small movements
         // A movement threshold of 1 for each axis isn't sensitive enough to catch small but intentional flicks
         // A threshold of 0 has too many false positives that result in unintentional virtual desktop changes
-        if (abs(deltaX) + abs(deltaY))/2 < movementThreshold {
+        if (abs(deltaX) + abs(deltaY))/2 < Self.movementThreshold {
           return nil
         }
 
@@ -183,16 +197,16 @@ class EventTap {
         self.dragging = true
 
         // If we have a large movement
-        if abs(deltaX) > largeMovementThreshold || abs(deltaY) > largeMovementThreshold {
+        if abs(deltaX) > Self.largeMovementThreshold || abs(deltaY) > Self.largeMovementThreshold {
           // And the movement is sufficiently diagonal
-          if (abs(deltaX) - abs(deltaY)) < diagonalThreshold {
+          if (abs(deltaX) - abs(deltaY)) < Self.diagonalThreshold {
             // Do nothing, this isn't a good signal
             return nil
           }
         }
         
         // If we haven't reached the direction threshold, prefer X
-        if  abs(deltaX) < directionThreshold && abs(deltaY) < directionThreshold {
+        if  abs(deltaX) < Self.directionThreshold && abs(deltaY) < Self.directionThreshold {
           if deltaX < 0 { // negative movements are to the left, positive to the right
             self.keyPress(Keys.leftArrow.rawValue, false, true)
             return nil
@@ -202,7 +216,7 @@ class EventTap {
         }
         
         // Otherwise, we need to decide if this is an X or a Y motion
-        if ((abs(deltaX) - abs(deltaY)) > directionThreshold) {
+        if ((abs(deltaX) - abs(deltaY)) > Self.directionThreshold) {
           // Probably an X movement
           if deltaX < 0 { // negative movements are to the left, positive to the right
             self.keyPress(Keys.leftArrow.rawValue, false, true)
@@ -257,15 +271,16 @@ extension CGEventTap {
 
     let mask: UInt32 = (1 << 25) | (1 << 26) | (1 << 27)
 
-    let tap: CFMachPort! = CGEvent.tapCreate(
+    guard let tap = CGEvent.tapCreate(
       tap: tap,
       place: .headInsertEventTap,
       options: .defaultTap,
       eventsOfInterest: CGEventMask(mask),
       callback: callback,
       userInfo: nil
-    )
-    assert(tap != nil, "Failed to create event tap")
+    ) else {
+      fatalError("Failed to create event tap. This may be due to insufficient permissions or system restrictions.")
+    }
     return tap
   }
 

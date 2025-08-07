@@ -110,27 +110,23 @@ final class EventTapTests: XCTestCase {
     
     func testLeftMovementDetection() {
         let deltaX = -5
-        let deltaY = 0
         
         XCTAssertTrue(deltaX < 0, "Negative X should indicate left movement")
     }
     
     func testRightMovementDetection() {
         let deltaX = 5
-        let deltaY = 0
         
         XCTAssertTrue(deltaX > 0, "Positive X should indicate right movement")
     }
     
     func testUpMovementDetection() {
-        let deltaX = 0
         let deltaY = -5
         
         XCTAssertTrue(deltaY < 0, "Negative Y should indicate up movement")
     }
     
     func testDownMovementDetection() {
-        let deltaX = 0
         let deltaY = 5
         
         XCTAssertTrue(deltaY > 0, "Positive Y should indicate down movement")
@@ -171,6 +167,40 @@ final class EventTapTests: XCTestCase {
         XCTAssertEqual(gestureButton, 26)
         XCTAssertEqual(forwardButton, 3)
         XCTAssertEqual(backButton, 4)
+    }
+    
+    // MARK: - Guard Condition Tests
+    
+    func testRemoveWithNilRunLoopSource() {
+        // Test the guard condition in EventTap.remove() when runLoopSource is nil
+        
+        // Ensure runLoopSource starts as nil
+        EventTap.runLoopSource = nil
+        
+        // This should not crash or throw - the guard should handle it gracefully
+        XCTAssertNoThrow {
+            EventTap.remove()
+        }
+        
+        // runLoopSource should still be nil after calling remove
+        XCTAssertNil(EventTap.runLoopSource)
+    }
+    
+    func testHandleEventWithNilParameter() {
+        // Test the guard condition in EventTap.handleEvent() with nil event parameter
+        
+        // Create a mock proxy using OpaquePointer
+        let mockProxy = OpaquePointer(bitPattern: 1)!
+        
+        let result = EventTap.handleEvent(
+            proxy: mockProxy,
+            type: .otherMouseUp,
+            event: nil, // This should trigger the guard condition
+            refcon: nil
+        )
+        
+        // Should return nil when event parameter is nil
+        XCTAssertNil(result, "handleEvent should return nil when event parameter is nil")
     }
 }
 

@@ -182,62 +182,91 @@ class EventTap {
     case .otherMouseDragged:
       // eventButtonNumber is 0-indexed: this is button27 in Karabiner
       if event.getIntegerValueField(.mouseEventButtonNumber) == gestureButtonNumber {
-        let deltaX = event.getIntegerValueField(.mouseEventDeltaX)
-        let deltaY = event.getIntegerValueField(.mouseEventDeltaY)
-
-        // Use an average here to artificially increase the precision.
-        // Because we only have an integer value, it's harder to accurately detect small movements
-        // A movement threshold of 1 for each axis isn't sensitive enough to catch small but intentional flicks
-        // A threshold of 0 has too many false positives that result in unintentional virtual desktop changes
-        if (abs(deltaX) + abs(deltaY))/2 < Self.movementThreshold {
-          return nil
-        }
-
-        // Ensure we set a successful drag, so that the button presses don't interfere with the gesturing
-        self.dragging = true
-
-        // If we have a large movement
-        if abs(deltaX) > Self.largeMovementThreshold || abs(deltaY) > Self.largeMovementThreshold {
-          // And the movement is sufficiently diagonal
-          if (abs(deltaX) - abs(deltaY)) < Self.diagonalThreshold {
-            // Do nothing, this isn't a good signal
-            return nil
-          }
-        }
-        
-        // If we haven't reached the direction threshold, prefer X
-        if  abs(deltaX) < Self.directionThreshold && abs(deltaY) < Self.directionThreshold {
-          if deltaX < 0 { // negative movements are to the left, positive to the right
-            self.keyPress(Keys.leftArrow.rawValue, false, true)
-            return nil
-          }
-          self.keyPress(Keys.rightArrow.rawValue, false, true)
-          return nil
-        }
-        
-        // Otherwise, we need to decide if this is an X or a Y motion
-        if ((abs(deltaX) - abs(deltaY)) > Self.directionThreshold) {
-          // Probably an X movement
-          if deltaX < 0 { // negative movements are to the left, positive to the right
-            self.keyPress(Keys.leftArrow.rawValue, false, true)
-            return nil
-          }
-          self.keyPress(Keys.rightArrow.rawValue, false, true)
-          return nil
-        }
-            
-        if deltaY < 0 { // negative movements are up, positive down
-          self.keyPress(Keys.missionControl.rawValue, false, false)
-          return nil
-        }
-        self.keyPress(Keys.downArrow.rawValue, false, true)
-        return nil
+        return handleGestureEvent(event: event)
       }
       return event
 
     default:
       return event
 
+    }
+  }
+  
+  // MARK: - Private Gesture Handling Methods
+  
+  /// Handles gesture detection and processing for mouse drag events
+  private class func handleGestureEvent(event: CGEvent) -> CGEvent? {
+    let deltaX = event.getIntegerValueField(.mouseEventDeltaX)
+    let deltaY = event.getIntegerValueField(.mouseEventDeltaY)
+    
+    // Check if movement meets minimum threshold
+    guard isMovementSignificant(deltaX: deltaX, deltaY: deltaY) else {
+      return nil
+    }
+    
+    // Set dragging state for successful gesture detection
+    dragging = true
+    
+    // Validate large movements aren't too diagonal
+    guard isValidLargeMovement(deltaX: deltaX, deltaY: deltaY) else {
+      return nil
+    }
+    
+    // Execute the appropriate gesture action
+    executeGestureAction(deltaX: deltaX, deltaY: deltaY)
+    return nil
+  }
+  
+  /// Checks if mouse movement meets the minimum threshold for gesture detection
+  private class func isMovementSignificant(deltaX: Int64, deltaY: Int64) -> Bool {
+    // Use an average here to artificially increase the precision.
+    // Because we only have an integer value, it's harder to accurately detect small movements
+    // A movement threshold of 1 for each axis isn't sensitive enough to catch small but intentional flicks
+    // A threshold of 0 has too many false positives that result in unintentional virtual desktop changes
+    return (abs(deltaX) + abs(deltaY))/2 >= movementThreshold
+  }
+  
+  /// Validates that large movements aren't too diagonal to be considered valid gestures
+  private class func isValidLargeMovement(deltaX: Int64, deltaY: Int64) -> Bool {
+    // If we have a large movement
+    if abs(deltaX) > largeMovementThreshold || abs(deltaY) > largeMovementThreshold {
+      // And the movement is sufficiently diagonal
+      if (abs(deltaX) - abs(deltaY)) < diagonalThreshold {
+        // Do nothing, this isn't a good signal
+        return false
+      }
+    }
+    return true
+  }
+  
+  /// Determines direction and executes the appropriate key press for the gesture
+  private class func executeGestureAction(deltaX: Int64, deltaY: Int64) {
+    // If we haven't reached the direction threshold, prefer X
+    if abs(deltaX) < directionThreshold && abs(deltaY) < directionThreshold {
+      if deltaX < 0 { // negative movements are to the left, positive to the right
+        keyPress(Keys.leftArrow.rawValue, false, true)
+      } else {
+        keyPress(Keys.rightArrow.rawValue, false, true)
+      }
+      return
+    }
+    
+    // Otherwise, we need to decide if this is an X or a Y motion
+    if (abs(deltaX) - abs(deltaY)) > directionThreshold {
+      // Probably an X movement
+      if deltaX < 0 { // negative movements are to the left, positive to the right
+        keyPress(Keys.leftArrow.rawValue, false, true)
+      } else {
+        keyPress(Keys.rightArrow.rawValue, false, true)
+      }
+      return
+    }
+    
+    // Y movement
+    if deltaY < 0 { // negative movements are up, positive down
+      keyPress(Keys.missionControl.rawValue, false, false)
+    } else {
+      keyPress(Keys.downArrow.rawValue, false, true)
     }
   }
 }

@@ -10,6 +10,54 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import os.log
+
+// MARK: - Error Handling
+
+/// Errors that can occur during gesture processing and event handling.
+enum GestureError: Error {
+  /// Failed to create Core Graphics event tap due to insufficient permissions or system restrictions
+  case eventTapCreationFailed
+  /// Failed to create a keyboard event for simulation
+  case keyboardEventCreationFailed(key: CGKeyCode)
+  /// Failed to post an event to the system
+  case eventPostingFailed
+  /// Invalid event data received from system
+  case invalidEventData
+}
+
+// MARK: - Logging
+
+/// Centralized logging for the MXMaster gesture control application.
+struct Logger {
+  /// OSLog instance for gesture control events
+  private static let gestureLog = OSLog(subsystem: "com.mxmaster.gesturecontrol", category: "gesture")
+  
+  /// OSLog instance for system events and errors
+  private static let systemLog = OSLog(subsystem: "com.mxmaster.gesturecontrol", category: "system")
+  
+  /// Logs gesture-related events
+  static func gesture(_ message: String, type: OSLogType = .default) {
+    os_log("%{public}@", log: gestureLog, type: type, message)
+  }
+  
+  /// Logs system-related events and errors
+  static func system(_ message: String, type: OSLogType = .default) {
+    os_log("%{public}@", log: systemLog, type: type, message)
+  }
+  
+  /// Logs error conditions
+  static func error(_ message: String) {
+    os_log("%{public}@", log: systemLog, type: .error, message)
+  }
+  
+  /// Logs debug information (only in debug builds)
+  static func debug(_ message: String) {
+    #if DEBUG
+    os_log("%{public}@", log: gestureLog, type: .debug, message)
+    #endif
+  }
+}
 
 /// Virtual key codes for keyboard input simulation.
 /// 
@@ -100,14 +148,28 @@ class EventTap {
   /// - Warning: This method will call `fatalError()` if event tap creation fails,
   ///   typically due to insufficient permissions.
   static func create() {
-    if runLoopSource != nil { EventTap.remove() }
+    Logger.system("Starting event tap creation")
+    
+    if runLoopSource != nil { 
+      Logger.system("Removing existing event tap before creating new one")
+      EventTap.remove() 
+    }
 
-    let tap = CGEventTap.create(tap: self.tap, callback: tapCallback)
-
-    runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, CFIndex(0))
-    CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
-    CGEvent.tapEnable(tap: tap, enable: true)
-    CFRunLoopRun()
+    do {
+      let tap = try CGEventTap.createSafe(tap: self.tap, callback: tapCallback)
+      
+      runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, CFIndex(0))
+      CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
+      CGEvent.tapEnable(tap: tap, enable: true)
+      
+      Logger.system("Event tap created successfully, starting run loop")
+      CFRunLoopRun()
+    } catch {
+      Logger.error("Failed to create event tap: \(error.localizedDescription)")
+      Logger.system("Application will exit due to event tap creation failure")
+      Logger.system("Please check: 1) Accessibility permissions in System Preferences 2) Application is not sandboxed 3) Running with appropriate user permissions")
+      exit(1)
+    }
   }
 
   /// Removes the active event tap and stops monitoring mouse gestures.
@@ -121,9 +183,15 @@ class EventTap {
   /// - Sets `runLoopSource` to nil to indicate no active monitoring
   /// - Does nothing if no event tap is currently active
   static func remove() {
-    guard let source = runLoopSource else { return }
+    guard let source = runLoopSource else { 
+      Logger.debug("No active event tap to remove")
+      return 
+    }
+    
+    Logger.system("Removing event tap and stopping run loop monitoring")
     CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .commonModes)
     runLoopSource = nil
+    Logger.system("Event tap removed successfully")
   }
 
   /// Simulates a keyboard key press with optional modifier keys.
@@ -157,6 +225,9 @@ class EventTap {
       if let event = CGEvent(keyboardEventSource: source, virtualKey: Keys.control.rawValue, keyDown: true) {
         event.flags = CGEventFlags.maskControl
         event.post(tap: self.tap)
+        Logger.debug("Posted Control key down event for arrow key combination")
+      } else {
+        Logger.error("Failed to create Control key down event for key combination")
       }
       // The sleeps are necessary to allow the system to recognize the control key has been pressed before sending the arrows
       // usleep(100) is very reliable but 50 seems pretty close to the minimum value
@@ -177,6 +248,9 @@ class EventTap {
       }
 
       event.post(tap: self.tap)
+      Logger.debug("Posted key down event for key: \(key)")
+    } else {
+      Logger.error("Failed to create key down event for key: \(key)")
     }
 
     // Button up
@@ -194,6 +268,9 @@ class EventTap {
       }
 
       event.post(tap: self.tap)
+      Logger.debug("Posted key up event for key: \(key)")
+    } else {
+      Logger.error("Failed to create key up event for key: \(key)")
     }
 
     if control && arrow {
@@ -201,6 +278,9 @@ class EventTap {
         if let event = CGEvent(keyboardEventSource: source, virtualKey: Keys.control.rawValue, keyDown: false) {
           event.flags = CGEventFlags.maskControl
           event.post(tap: self.tap)
+          Logger.debug("Posted Control key up event for arrow key combination")
+        } else {
+          Logger.error("Failed to create Control key up event for key combination")
         }
     }
   }
@@ -244,11 +324,13 @@ class EventTap {
       case gestureButtonNumber:
         // If the user was in the middle of a drag, now they've lifted the button and are done
         if self.dragging {
+          Logger.gesture("Gesture drag completed, consuming button release event")
           self.dragging = false
           // eat the event if they were in the middle of a drag
           return nil
         }
         // otherwise they weren't dragging, let's open mission control
+        Logger.gesture("Gesture button tap detected, opening Mission Control")
         self.keyPress(Keys.missionControl.rawValue, false, false)
         return nil
       default:
@@ -314,8 +396,11 @@ class EventTap {
     let deltaX = event.getIntegerValueField(.mouseEventDeltaX)
     let deltaY = event.getIntegerValueField(.mouseEventDeltaY)
     
+    Logger.debug("Processing gesture drag: deltaX=\(deltaX), deltaY=\(deltaY)")
+    
     // Check if movement meets minimum threshold
     guard isMovementSignificant(deltaX: deltaX, deltaY: deltaY) else {
+      Logger.debug("Movement below threshold, ignoring gesture")
       return nil
     }
     
@@ -324,6 +409,7 @@ class EventTap {
     
     // Validate large movements aren't too diagonal
     guard isValidLargeMovement(deltaX: deltaX, deltaY: deltaY) else {
+      Logger.debug("Large diagonal movement detected, ignoring as invalid gesture")
       return nil
     }
     
@@ -402,8 +488,10 @@ class EventTap {
     // If we haven't reached the direction threshold, prefer X
     if abs(deltaX) < directionThreshold && abs(deltaY) < directionThreshold {
       if deltaX < 0 { // negative movements are to the left, positive to the right
+        Logger.gesture("Small gesture detected: LEFT (previous desktop)")
         keyPress(Keys.leftArrow.rawValue, false, true)
       } else {
+        Logger.gesture("Small gesture detected: RIGHT (next desktop)")
         keyPress(Keys.rightArrow.rawValue, false, true)
       }
       return
@@ -413,8 +501,10 @@ class EventTap {
     if (abs(deltaX) - abs(deltaY)) > directionThreshold {
       // Probably an X movement
       if deltaX < 0 { // negative movements are to the left, positive to the right
+        Logger.gesture("Directional gesture detected: LEFT (previous desktop)")
         keyPress(Keys.leftArrow.rawValue, false, true)
       } else {
+        Logger.gesture("Directional gesture detected: RIGHT (next desktop)")
         keyPress(Keys.rightArrow.rawValue, false, true)
       }
       return
@@ -422,8 +512,10 @@ class EventTap {
     
     // Y movement
     if deltaY < 0 { // negative movements are up, positive down
+      Logger.gesture("Vertical gesture detected: UP (Mission Control)")
       keyPress(Keys.missionControl.rawValue, false, false)
     } else {
+      Logger.gesture("Vertical gesture detected: DOWN (Show windows for current application on the current desktop)")
       keyPress(Keys.downArrow.rawValue, false, true)
     }
   }

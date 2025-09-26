@@ -257,21 +257,14 @@ class EventTap {
       EventTap.remove() 
     }
 
-    do {
-      let tap = try CGEventTap.createSafe(tap: self.tap, callback: tapCallback)
-      
-      runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, CFIndex(0))
-      CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
-      CGEvent.tapEnable(tap: tap, enable: true)
-      
-      Logger.system("Event tap created successfully, starting run loop")
-      CFRunLoopRun()
-    } catch {
-      Logger.error("Failed to create event tap: \(error.localizedDescription)")
-      Logger.system("Application will exit due to event tap creation failure")
-      Logger.system("Please check: 1) Accessibility permissions in System Preferences 2) Application is not sandboxed 3) Running with appropriate user permissions")
-      exit(1)
-    }
+    let tap = CGEventTap.create(tap: self.tap, callback: tapCallback)
+    
+    runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, CFIndex(0))
+    CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
+    CGEvent.tapEnable(tap: tap, enable: true)
+    
+    Logger.system("Event tap created successfully, starting run loop")
+    CFRunLoopRun()
   }
 
   /// Removes the active event tap and stops monitoring mouse gestures.

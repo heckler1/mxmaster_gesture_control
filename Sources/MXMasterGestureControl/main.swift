@@ -336,13 +336,12 @@ class EventTap {
       default:
         return event
       }
-    /*
-    // We could set forward and back conversion here as well
+    
+    // We set forward and back conversion here as well
     // These buttons should be converted to the proper keyboard shortcuts 
     // regardless of reversing the forward and back mapping, for proper interpretation by all apps
-    // But, for now we just do all this in Karabiner. 
-    // This could come in handy if we want to get fancy and try to find events from 
-    // specific devices to move all reinterpretation out of Karabiner, but there's not much benefit to that
+    // We used to just do all this in Karabiner, but recent IT policy changes
+    // prevent Karabiner's virtual device driver from being loaded
     case .otherMouseDown:
       // eventButtonNumber is 0-indexed, most other software displays it as 1-indexed though
       switch event.getIntegerValueField(.mouseEventButtonNumber) {
@@ -358,7 +357,6 @@ class EventTap {
       default:
         return event
       }
-    */
     case .otherMouseDragged:
       // eventButtonNumber is 0-indexed: this is button27 in Karabiner
       if event.getIntegerValueField(.mouseEventButtonNumber) == gestureButtonNumber {

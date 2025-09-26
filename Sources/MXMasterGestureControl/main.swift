@@ -80,6 +80,108 @@ enum Keys: CGKeyCode {
   case missionControl = 160
 }
 
+/// Utility class for simulating keyboard events from both HID and EventTap systems.
+class KeyboardSimulator {
+  
+  /// Event tap location for posting keyboard events
+  private static var tap: CGEventTapLocation = .cgSessionEventTap
+  
+  /// Key press timing constants
+  private static let controlKeyDelay: UInt32 = 50  // microseconds
+  private static let controlKeyReleaseDelay: UInt32 = 20  // microseconds
+  
+  /// Simulates a keyboard key press with optional modifier keys.
+  /// 
+  /// This method creates and posts Core Graphics keyboard events to simulate
+  /// key presses. It handles the complexity of modifier key timing, particularly
+  /// for Control+Arrow combinations which require special sequencing.
+  /// 
+  /// - Parameters:
+  ///   - key: The virtual key code to press (see `Keys` enum)
+  ///   - command: Whether to hold the Command (⌘) key during the press
+  ///   - control: Whether to hold the Control (⌃) key during the press
+  /// 
+  /// ## Special Handling:
+  /// - **Control+Arrow keys**: Control is pressed separately with timing delays
+  ///   to ensure proper system recognition for virtual desktop switching
+  /// - **Other combinations**: Modifier flags are applied to the main key events
+  /// 
+  /// ## Timing:
+  /// - Uses `controlKeyDelay` (50μs) between Control press and arrow key
+  /// - Uses `controlKeyReleaseDelay` (20μs) before Control release
+  static func keyPress(_ key: CGKeyCode, _ command: Bool, _ control: Bool) {
+    let source = CGEventSource(stateID: .privateState)
+
+    let arrow = (key == Keys.rightArrow.rawValue || key == Keys.leftArrow.rawValue || key == Keys.upArrow.rawValue || key == Keys.downArrow.rawValue)
+
+    if control && arrow {
+      // Specifically for use with arrow keys, the control key must be pressed "manually" like this,
+      // and must also have the Control modifier flag
+      // One or the other is not enough: adding the flag to the actual arrow events will not work
+      if let event = CGEvent(keyboardEventSource: source, virtualKey: Keys.control.rawValue, keyDown: true) {
+        event.flags = CGEventFlags.maskControl
+        event.post(tap: tap)
+        Logger.debug("Posted Control key down event for arrow key combination")
+      } else {
+        Logger.error("Failed to create Control key down event for key combination")
+      }
+      // The sleeps are necessary to allow the system to recognize the control key has been pressed before sending the arrows
+      // usleep(100) is very reliable but 50 seems pretty close to the minimum value
+      usleep(controlKeyDelay)
+    }
+
+    // Button down
+    if let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true) {
+      if command {
+        event.flags = CGEventFlags.maskCommand
+      }
+      if control && !arrow {
+        if command {
+          event.flags = [CGEventFlags.maskCommand, CGEventFlags.maskControl]
+        } else {
+          event.flags = CGEventFlags.maskControl
+        }
+      }
+
+      event.post(tap: tap)
+      Logger.debug("Posted key down event for key: \(key)")
+    } else {
+      Logger.error("Failed to create key down event for key: \(key)")
+    }
+
+    // Button up
+    if let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false) {
+      if command {
+        event.flags =  CGEventFlags.maskCommand
+      }
+      if control && !arrow {
+        if command {
+          event.flags = [CGEventFlags.maskCommand, CGEventFlags.maskControl]
+        } 
+        else {
+          event.flags = CGEventFlags.maskControl
+        }
+      }
+
+      event.post(tap: tap)
+      Logger.debug("Posted key up event for key: \(key)")
+    } else {
+      Logger.error("Failed to create key up event for key: \(key)")
+    }
+
+    if control && arrow {
+        usleep(controlKeyReleaseDelay)
+        if let event = CGEvent(keyboardEventSource: source, virtualKey: Keys.control.rawValue, keyDown: false) {
+          event.flags = CGEventFlags.maskControl
+          event.post(tap: tap)
+          Logger.debug("Posted Control key up event for arrow key combination")
+        } else {
+          Logger.error("Failed to create Control key up event for key combination")
+        }
+    }
+  }
+}
+
 /// Handles mouse gesture recognition and keyboard event simulation for MX Master mouse.
 /// 
 /// This class creates a Core Graphics event tap to intercept mouse events from button 27
@@ -194,96 +296,6 @@ class EventTap {
     Logger.system("Event tap removed successfully")
   }
 
-  /// Simulates a keyboard key press with optional modifier keys.
-  /// 
-  /// This method creates and posts Core Graphics keyboard events to simulate
-  /// key presses. It handles the complexity of modifier key timing, particularly
-  /// for Control+Arrow combinations which require special sequencing.
-  /// 
-  /// - Parameters:
-  ///   - key: The virtual key code to press (see `Keys` enum)
-  ///   - command: Whether to hold the Command (⌘) key during the press
-  ///   - control: Whether to hold the Control (⌃) key during the press
-  /// 
-  /// ## Special Handling:
-  /// - **Control+Arrow keys**: Control is pressed separately with timing delays
-  ///   to ensure proper system recognition for virtual desktop switching
-  /// - **Other combinations**: Modifier flags are applied to the main key events
-  /// 
-  /// ## Timing:
-  /// - Uses `controlKeyDelay` (50μs) between Control press and arrow key
-  /// - Uses `controlKeyReleaseDelay` (20μs) before Control release
-  static func keyPress(_ key: CGKeyCode, _ command: Bool, _ control: Bool) {
-    let source = CGEventSource(stateID: .privateState)
-
-    let arrow = (key == Keys.rightArrow.rawValue || key == Keys.leftArrow.rawValue || key == Keys.upArrow.rawValue || key == Keys.downArrow.rawValue)
-
-    if control && arrow {
-      // Specifically for use with arrow keys, the control key must be pressed "manually" like this,
-      // and must also have the Control modifier flag
-      // One or the other is not enough: adding the flag to the actual arrow events will not work
-      if let event = CGEvent(keyboardEventSource: source, virtualKey: Keys.control.rawValue, keyDown: true) {
-        event.flags = CGEventFlags.maskControl
-        event.post(tap: self.tap)
-        Logger.debug("Posted Control key down event for arrow key combination")
-      } else {
-        Logger.error("Failed to create Control key down event for key combination")
-      }
-      // The sleeps are necessary to allow the system to recognize the control key has been pressed before sending the arrows
-      // usleep(100) is very reliable but 50 seems pretty close to the minimum value
-      usleep(controlKeyDelay)
-    }
-
-    // Button down
-    if let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true) {
-      if command {
-        event.flags = CGEventFlags.maskCommand
-      }
-      if control && !arrow {
-        if command {
-          event.flags = [CGEventFlags.maskCommand, CGEventFlags.maskControl]
-        } else {
-          event.flags = CGEventFlags.maskControl
-        }
-      }
-
-      event.post(tap: self.tap)
-      Logger.debug("Posted key down event for key: \(key)")
-    } else {
-      Logger.error("Failed to create key down event for key: \(key)")
-    }
-
-    // Button up
-    if let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false) {
-      if command {
-        event.flags =  CGEventFlags.maskCommand
-      }
-      if control && !arrow {
-        if command {
-          event.flags = [CGEventFlags.maskCommand, CGEventFlags.maskControl]
-        } 
-        else {
-          event.flags = CGEventFlags.maskControl
-        }
-      }
-
-      event.post(tap: self.tap)
-      Logger.debug("Posted key up event for key: \(key)")
-    } else {
-      Logger.error("Failed to create key up event for key: \(key)")
-    }
-
-    if control && arrow {
-        usleep(controlKeyReleaseDelay)
-        if let event = CGEvent(keyboardEventSource: source, virtualKey: Keys.control.rawValue, keyDown: false) {
-          event.flags = CGEventFlags.maskControl
-          event.post(tap: self.tap)
-          Logger.debug("Posted Control key up event for arrow key combination")
-        } else {
-          Logger.error("Failed to create Control key up event for key combination")
-        }
-    }
-  }
 
   /// Core event handler for intercepted mouse events.
   /// 
@@ -331,7 +343,7 @@ class EventTap {
         }
         // otherwise they weren't dragging, let's open mission control
         Logger.gesture("Gesture button tap detected, opening Mission Control")
-        self.keyPress(Keys.missionControl.rawValue, false, false)
+        KeyboardSimulator.keyPress(Keys.missionControl.rawValue, false, false)
         return nil
       default:
         return event
@@ -348,11 +360,11 @@ class EventTap {
       case 3:
         // forward
         // TODO: Make the swapping behavior here configurable
-        self.keyPress(Keys.rightArrow.rawValue, true, false)
+        KeyboardSimulator.keyPress(Keys.rightArrow.rawValue, true, false)
         return nil
       case 4:
         // back
-        self.keyPress(Keys.leftArrow.rawValue, true, false)
+        KeyboardSimulator.keyPress(Keys.leftArrow.rawValue, true, false)
         return nil
       default:
         return event
@@ -487,10 +499,10 @@ class EventTap {
     if abs(deltaX) < directionThreshold && abs(deltaY) < directionThreshold {
       if deltaX < 0 { // negative movements are to the left, positive to the right
         Logger.gesture("Small gesture detected: LEFT (previous desktop)")
-        keyPress(Keys.leftArrow.rawValue, false, true)
+        KeyboardSimulator.keyPress(Keys.leftArrow.rawValue, false, true)
       } else {
         Logger.gesture("Small gesture detected: RIGHT (next desktop)")
-        keyPress(Keys.rightArrow.rawValue, false, true)
+        KeyboardSimulator.keyPress(Keys.rightArrow.rawValue, false, true)
       }
       return
     }
@@ -500,10 +512,10 @@ class EventTap {
       // Probably an X movement
       if deltaX < 0 { // negative movements are to the left, positive to the right
         Logger.gesture("Directional gesture detected: LEFT (previous desktop)")
-        keyPress(Keys.leftArrow.rawValue, false, true)
+        KeyboardSimulator.keyPress(Keys.leftArrow.rawValue, false, true)
       } else {
         Logger.gesture("Directional gesture detected: RIGHT (next desktop)")
-        keyPress(Keys.rightArrow.rawValue, false, true)
+        KeyboardSimulator.keyPress(Keys.rightArrow.rawValue, false, true)
       }
       return
     }
@@ -511,10 +523,10 @@ class EventTap {
     // Y movement
     if deltaY < 0 { // negative movements are up, positive down
       Logger.gesture("Vertical gesture detected: UP (Mission Control)")
-      keyPress(Keys.missionControl.rawValue, false, false)
+      KeyboardSimulator.keyPress(Keys.missionControl.rawValue, false, false)
     } else {
       Logger.gesture("Vertical gesture detected: DOWN (Show windows for current application on the current desktop)")
-      keyPress(Keys.downArrow.rawValue, false, true)
+      KeyboardSimulator.keyPress(Keys.downArrow.rawValue, false, true)
     }
   }
 }

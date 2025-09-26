@@ -18,21 +18,22 @@ The Karabiner config sends the forward and back buttons as L-Cmd + Left/Right Ar
 
 ```bash
 swift build -c release
-cp ./.build/release/mxmaster_gesture_control ~/.local/bin/mxmaster_gesture_control
+cp ./.build/release/mxmaster-gesture-control ~/.local/bin/mxmaster-gesture-control
 ```
 
 ## Start on login
 
 ```
-cat << EOF >> ~/Library/LaunchAgents/mxmaster_gesture_control.plist
+mkdir -p ~/Library/LaunchAgents
+cat << EOF >> ~/Library/LaunchAgents/mxmaster-gesture-control.plist
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.yourname.mxmastergesturecontrol</string>
+    <string>com.sheckler.mxmastergesturecontrol</string>
     <key>Program</key>
-    <string>/Users/yourname/.local/bin/mxmaster_gesture_control</string>
+    <string>/Users/sheckler/.local/bin/mxmaster-gesture-control</string>
     <key>KeepAlive</key>
     <true/>
 </dict>
@@ -40,12 +41,12 @@ cat << EOF >> ~/Library/LaunchAgents/mxmaster_gesture_control.plist
 EOF
 
 # Load for the first time and accept the Accessibility prompt
-launchctl load ~/Library/LaunchAgents/mxmaster_gesture_control.plist
+launchctl load ~/Library/LaunchAgents/mxmaster-gesture-control.plist
 ```
 
 ## Upgrading
 
 - Run the Build/Install instructions above
 - Go to MacOS's Settings -> Privacy and Security -> Accessibility
-- Delete the `mxmaster_gesture_control` entry
+- Delete the `mxmaster-gesture-control` entry
 - Rerun the `launchctl load` command above
